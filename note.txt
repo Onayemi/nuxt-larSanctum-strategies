@@ -1,0 +1,153 @@
+$nuxt.$auth.$state.loggedIn
+
+async login() {
+    try {
+        await this.$auth.loginWith('laravelSanctum', { data:this.form})
+            .then((response) =>{
+                this.$router.push('/admin/')
+            })
+    } catch (e) {
+        console.log(e)
+        if(e.response.status == 422){
+            this.errors = 'Could not sign you in with those credentials.'
+        }
+    }
+}
+
+strategies: {
+       laravelSanctum: {
+        provider: 'laravel/sanctum',
+        url: 'http://localhost:8000',
+        endpoints: {
+          // We are using fortity route
+          login: { 
+            url: '/login' 
+          },
+          logout: { 
+            url: '/logout' 
+          },
+          // We are using api route
+          user: { 
+            url: '/api/user' 
+          }
+        },
+        user: {
+          property: false
+        }
+      },
+    },
+
+=============
+
+async login() {
+    this.$axios.$get('/sanctum/csrf-cookie', {
+        headers: {
+            'X-Requested-With' : 'XMLHttpRequest',
+        },
+        withCredentials: true,
+    }).then(() => {
+        this.$auth.loginWith('local', { data:this.form})
+            .then((response) =>{
+                this.$router.push('/admin/')
+        })
+    })
+}
+
+
+1. ====== DOTENV SETUP =========
+npm i @nuxtjs/dotenv
+--- register it ----
+require('dotenv').config();
+
+buildModules: [
+'@nuxtjs/dotenv'
+]
+
+create .env in root folder
+e.g. API_KEY=hhsajfhfljkjfk  etc
+Access it
+${process.env.API_KEY} in anywhere to access
+
+
+--- vuex-persist.js ---
+
+import VuexPersistence from 'vuex-persist'
+ 
+export default ({ store }) => {
+  new VuexPersistence({
+    /* your options */
+    storage: window.localStorage
+  }).plugin(store);
+} 
+
+--- nuxt.config.js ---
+
+plugins: [
+    '@/plugins/axios.js',
+    // '~/plugins/notification.js'
+    { src: '~/plugins/vuex-persist', ssr: false }
+],
+
+axios.js
+export default function({ $axios, store, redirect}){
+    $axios.onRequest((config) => {
+        let token = store.state.token
+        if(token) { 
+            config.headers.common['Authorization'] = `Bearer ${token}`
+        }
+        return config
+    })
+}
+
+
+guest.js  (redirect to dashboard when you login already)
+
+export default({ app, redirect}){
+    if(app.$auth.loggedIn){
+      return redirect('/admin/dashboard')
+    }
+}
+
+--- In store/index.js ---
+import axios from 'axios'
+export const state = () =>({
+    access_token: null,
+    users: {},
+    errors: [],
+})
+
+export const mutations = {
+    SET_API_TOKEN(state, payload){
+        state.access_token = payload
+    },
+    SET_USER(state, payload){
+        state.users = payload
+    },
+    SET_ERRORS(state, payload){
+        state.errors = payload
+    }
+}
+
+export const actions = {
+    nuxtServerInit({commit}, context){
+        // if(context.app.$auth.$state.loggedIn){
+        //     commit('SET_API_TOKEN', context.app.$auth.$state.access_token)
+        // }
+    },
+    async getUser({commit}){
+        let { data } = await this.$axios.get('/me');
+        return data;
+    },
+}
+
+export const getters = {
+    isAuthenticated(state){
+        return state.users
+    },
+    loggedInUser(state){
+        return state.token
+    },
+    getUser(state){
+        return state.users
+    }
+}
